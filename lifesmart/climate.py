@@ -11,8 +11,11 @@ from homeassistant.components.climate.const import (
     SUPPORT_FAN_MODE,
     SUPPORT_TARGET_TEMPERATURE,
     HVAC_MODE_OFF,
+    FAN_HIGH,
+    FAN_LOW,
+    FAN_MEDIUM,
 )
-from homeassistant.components.fan import SPEED_HIGH, SPEED_LOW, SPEED_MEDIUM
+
 from homeassistant.const import (
     ATTR_TEMPERATURE,
     PRECISION_WHOLE,
@@ -34,8 +37,8 @@ HVAC_MODE_DRY]
 LIFESMART_STATE_LIST2 = [HVAC_MODE_OFF,
 HVAC_MODE_HEAT]
 
-FAN_MODES = [SPEED_LOW, SPEED_MEDIUM, SPEED_HIGH]
-GET_FAN_SPEED = { SPEED_LOW:15, SPEED_MEDIUM:45, SPEED_HIGH:76 }
+FAN_MODES = [FAN_LOW, FAN_MEDIUM, FAN_HIGH]
+GET_FAN_SPEED = { FAN_LOW:15, FAN_MEDIUM:45, FAN_HIGH:76 }
 
 AIR_TYPES=["V_AIR_P"]
 
@@ -132,11 +135,11 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
         """Return the fan setting."""
         fanmode = None
         if self._fanspeed < 30:
-            fanmode = SPEED_LOW
+            fanmode = FAN_LOW
         elif self._fanspeed < 65 and self._fanspeed >= 30:
-            fanmode = SPEED_MEDIUM
+            fanmode = FAN_MEDIUM
         elif self._fanspeed >=65:
-            fanmode = SPEED_HIGH
+            fanmode = FAN_HIGH
         return fanmode
 
     @property

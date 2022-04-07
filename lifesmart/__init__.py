@@ -26,8 +26,10 @@ from homeassistant.components.climate.const import (
     SUPPORT_FAN_MODE,
     SUPPORT_TARGET_TEMPERATURE,
     HVAC_MODE_OFF,
+    FAN_HIGH,
+    FAN_LOW,
+    FAN_MEDIUM,
 )
-from homeassistant.components.fan import SPEED_HIGH, SPEED_LOW, SPEED_MEDIUM
 from homeassistant.core import callback
 from homeassistant.helpers import discovery
 import homeassistant.helpers.config_validation as cv
@@ -292,11 +294,11 @@ def setup(hass, config):
     def get_fan_mode(_fanspeed):
         fanmode = None
         if _fanspeed < 30:
-            fanmode = SPEED_LOW
+            fanmode = FAN_LOW
         elif _fanspeed < 65 and _fanspeed >= 30:
-            fanmode = SPEED_MEDIUM
+            fanmode = FAN_MEDIUM
         elif _fanspeed >=65:
-            fanmode = SPEED_HIGH
+            fanmode = FAN_HIGH
         return fanmode
     
     async def set_Event(msg):
