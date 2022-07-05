@@ -475,7 +475,7 @@ class LifeSmartDevice(Entity):
 
     def __init__(self, dev, idx, val, param):
         """Initialize the switch."""
-        self._name = dev['name'] + "_" + idx
+        self._attr_name = dev['name'] + "_" + idx
         self._appkey = param['appkey']
         self._apptoken = param['apptoken']
         self._usertoken = param['usertoken']
@@ -484,24 +484,13 @@ class LifeSmartDevice(Entity):
         self._me = dev['me']
         self._idx = idx
         self._devtype = dev['devtype']
-        attrs = {"agt": self._agt,"me": self._me,"idx": self._idx,"devtype": self._devtype }
-        self._attributes = attrs
+        self._attr_extra_state_attributes.update({"agt": self._agt,"me": self._me,"idx": self._idx,"devtype": self._devtype })
         
 
     @property
     def object_id(self):
         """Return LifeSmart device id."""
         return self.entity_id
-
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        return self._attributes
-
-    @property
-    def name(self):
-        """Return LifeSmart device name."""
-        return self._name
 
     @property
     def assumed_state(self):
