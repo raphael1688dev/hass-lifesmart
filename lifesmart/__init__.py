@@ -494,7 +494,7 @@ class LifeSmartDevice(Entity):
         return self.entity_id
 
     @property
-    def device_state_attributes(self):
+    def extra_state_attributes(self):
         """Return the state attributes."""
         return self._attributes
 
@@ -548,9 +548,9 @@ class LifeSmartDevice(Entity):
         }
         header = {'Content-Type': 'application/json'}
         send_data = json.dumps(send_values)
+        _LOGGER.info("epset_send: %s",str(send_data))
         req = urllib.request.Request(url=url, data=send_data.encode('utf-8'), headers=header, method='POST')
         response = json.loads(urllib.request.urlopen(req).read().decode('utf-8'))
-        _LOGGER.info("epset_send: %s",str(send_data))
         _LOGGER.info("epset_res: %s",str(response))
         return response['code']
 
