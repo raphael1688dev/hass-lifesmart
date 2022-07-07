@@ -4,6 +4,14 @@ lifesmart 设备接入 HomeAssistant插件
 
 更新说明
 -------  
+[2022年7月5日累计更新]
+* Home Assitant 新版本适配：
+  * XXXDevice 改为 XXXEntity 
+  * FanSpeed 枚举修改
+  * device_state_attributes 改为 extra_state_attributes
+  * Climate 类中，统一修改为使用内置属性
+   
+
 [2020年12月26日更新]
 
 支持流光开关灯光控制
