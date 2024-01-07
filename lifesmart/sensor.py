@@ -3,7 +3,7 @@ import logging
 
 
 from homeassistant.const import (
-    TEMP_CELSIUS,
+    UnitOfTemperature,
 )
 DOMAIN = "sensor"
 ENTITY_ID_FORMAT = DOMAIN + ".{}"
@@ -52,7 +52,7 @@ class LifeSmartSensor(LifeSmartDevice):
         else:
             if idx == "T" or idx == "P1":
                 self._device_class = "temperature"
-                self._unit = TEMP_CELSIUS
+                self._unit = UnitOfTemperature.CELSIUS
             elif idx == "H" or idx == "P2":
                 self._device_class = "humidity"
                 self._unit = "%"
