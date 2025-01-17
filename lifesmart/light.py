@@ -175,3 +175,8 @@ class LifeSmartLight(LifeSmartDevice, LightEntity):
         req = urllib.request.Request(url=url, data=send_data.encode('utf-8'), headers=header, method='POST')
         response = json.loads(urllib.request.urlopen(req).read().decode('utf-8'))
         return response['message']['codes']
+
+    @property
+    def unique_id(self):
+        """A unique identifier for this entity."""
+        return self.entity_id
