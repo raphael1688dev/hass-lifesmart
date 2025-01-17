@@ -131,7 +131,7 @@ LifeSmart_STATE_MANAGER = 'lifesmart_wss'
 
 
 def lifesmart_EpGetAll(appkey,apptoken,usertoken,userid):
-    url = "https://api.ilifesmart.com/app/api.EpGetAll"
+    url = "https://api.us.ilifesmart.com/app/api.EpGetAll"
     tick = int(time.time())
     sdata = "method:EpGetAll,time:"+str(tick)+",userid:"+userid+",usertoken:"+usertoken+",appkey:"+appkey+",apptoken:"+apptoken
     sign = hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
@@ -455,7 +455,7 @@ def setup(hass, config):
 
     hass.services.register(DOMAIN, 'send_keys', send_keys)
     hass.services.register(DOMAIN, 'send_ackeys', send_ackeys)
-    ws = websocket.WebSocketApp("wss://api.ilifesmart.com:8443/wsapp/",
+    ws = websocket.WebSocketApp("wss://api.us.ilifesmart.com:8443/wsapp/",
                           on_message = on_message,
                           on_error = on_error,
                           on_close = on_close)
