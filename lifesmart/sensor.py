@@ -88,3 +88,8 @@ class LifeSmartSensor(LifeSmartDevice):
     def state(self):
         """Return the state of the sensor."""
         return self._state
+
+    @property
+    def unique_id(self):
+        """A unique identifier for this entity."""
+        return self.entity_id
