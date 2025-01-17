@@ -172,3 +172,8 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
             return ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
         else:
             return ClimateEntityFeature.TARGET_TEMPERATURE
+
+    @property
+    def unique_id(self):
+        """A unique identifier for this entity."""
+        return self.entity_id
