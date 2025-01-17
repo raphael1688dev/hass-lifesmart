@@ -65,3 +65,8 @@ class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
             self._state = False
             self.schedule_update_ha_state()
 
+    @property
+    def unique_id(self):
+        """A unique identifier for this entity."""
+        return self.entity_id
+
