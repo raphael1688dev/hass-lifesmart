@@ -131,7 +131,7 @@ LifeSmart_STATE_MANAGER = 'lifesmart_wss'
 
 
 def lifesmart_EpGetAll(appkey,apptoken,usertoken,userid):
-    url = "https://api.lifesmart.com/app/api.EpGetAll"
+    url = "https://api.us.ilifesmart.com/app/api.EpGetAll"
     tick = int(time.time())
     sdata = "method:EpGetAll,time:"+str(tick)+",userid:"+userid+",usertoken:"+usertoken+",appkey:"+appkey+",apptoken:"+apptoken
     sign = hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
@@ -157,7 +157,7 @@ def lifesmart_EpGetAll(appkey,apptoken,usertoken,userid):
 
 
 def lifesmart_Sendkeys(appkey,apptoken,usertoken,userid,agt,ai,me,category,brand,keys):
-    url = "https://api.ilifesmart.com/app/irapi.SendKeys"
+    url = "https://api.us.ilifesmart.com/app/irapi.SendKeys"
     tick = int(time.time())
     #keys = str(keys)
     sdata = "method:SendKeys,agt:"+agt+",ai:"+ai+",brand:"+brand+",category:"+category+",keys:"+keys+",me:"+me+",time:"+str(tick)+",userid:"+userid+",usertoken:"+usertoken+",appkey:"+appkey+",apptoken:"+apptoken
@@ -190,7 +190,7 @@ def lifesmart_Sendkeys(appkey,apptoken,usertoken,userid,agt,ai,me,category,brand
     _LOGGER.debug("sendkey_res: %s",str(response))
     return response
 def lifesmart_Sendackeys(appkey,apptoken,usertoken,userid,agt,ai,me,category,brand,keys,power,mode,temp,wind,swing):                                                                             
-    url = "https://api.ilifesmart.com/app/irapi.SendACKeys"                                                                                                        
+    url = "https://api.us.ilifesmart.com/app/irapi.SendACKeys"                                                                                                        
     tick = int(time.time())       
     #keys = str(keys)
     sdata = "method:SendACKeys,agt:"+agt+",ai:"+ai+",brand:"+brand+",category:"+category+",keys:"+keys+",me:"+me+",mode:"+str(mode)+",power:"+str(power)+",swing:"+str(swing)+",temp:"+str(temp)+",wind:"+str(wind)+",time:"+str(tick)+",userid:"+userid+",usertoken:"+usertoken+",appkey:"+appkey+",apptoken:"+apptoken
@@ -500,7 +500,7 @@ class LifeSmartDevice(Entity):
     @staticmethod
     def _lifesmart_epset(self, type, val, idx):
         #self._tick = int(time.time())
-        url = "https://api.ilifesmart.com/app/api.EpSet"
+        url = "https://api.us.ilifesmart.com/app/api.EpSet"
         tick = int(time.time())
         appkey = self._appkey
         apptoken = self._apptoken
@@ -539,7 +539,7 @@ class LifeSmartDevice(Entity):
 
     @staticmethod
     def _lifesmart_epget(self):
-        url = "https://api.ilifesmart.com/app/api.EpGet"
+        url = "https://api.us.ilifesmart.com/app/api.EpGet"
         tick = int(time.time())
         appkey = self._appkey
         apptoken = self._apptoken
