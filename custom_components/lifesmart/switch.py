@@ -3,6 +3,9 @@ import logging
 from homeassistant.components.switch import (
     SwitchEntity,
 )
+# [修復] 正確導入調度器連接函數
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
 from . import LifeSmartDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,27 +34,29 @@ class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
         self._attr_name = dev['name'] + "_" + idx
         self._attr_unique_id = (dev['devtype'] + "_" + dev['agt'] + "_" + dev['me'] + "_" + idx).lower()
         
-        # [回歸文檔標準]
-        # 根據 PDF Page 7: "type%2=1, indicates on (ignoring val)"
-        # 我們不再信任 val，而是嚴格檢查 type
+        # 根據數據初始化狀態
         self._update_from_data(val)
 
     def _update_from_data(self, data):
         """根據數據更新狀態"""
         if 'type' in data:
+            # 依據文檔: type 為奇數表示開，偶數表示關
             if data['type'] % 2 == 1:
                 self._attr_is_on = True
             else:
                 self._attr_is_on = False
         elif 'val' in data:
-            # Fallback: 萬一沒有 type 才看 val
+            # Fallback
             self._attr_is_on = (data['val'] == 1)
 
     async def async_added_to_hass(self):
         """訂閱更新"""
+        # [修復] 使用正確的 async_dispatcher_connect 呼叫方式
         self.async_on_remove(
-            self.hass.helpers.dispatcher.async_dispatcher_connect(
-                f"lifesmart_update_{self._attr_unique_id}", self._handle_update
+            async_dispatcher_connect(
+                self.hass,
+                f"lifesmart_update_{self._attr_unique_id}",
+                self._handle_update
             )
         )
 
@@ -83,7 +88,7 @@ class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
         await self.hass.async_add_executor_job(self._turn_off_sync)
 
     def _turn_off_sync(self):
-        # 關閉指令: 0x80 (修正後的正確指令)
+        # 關閉指令: 0x80 (符合文檔)
         if super()._lifesmart_epset(self, "0x80", 0, self._idx) == 0:
             self._attr_is_on = False
             self.schedule_update_ha_state()
