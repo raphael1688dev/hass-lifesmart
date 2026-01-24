@@ -15,7 +15,6 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     param = discovery_info.get("param")
     devices = []
     
-    # 根據 discovery info 建立實體
     for idx in dev['data']:
         if idx in ["L1", "L2", "L3", "P1", "P2", "P3"]:
             devices.append(LifeSmartSwitch(dev, idx, dev['data'][idx], param))
@@ -30,27 +29,51 @@ class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
         """Initialize the switch."""
         super().__init__(dev, idx, val, param)
         self._attr_name = dev['name'] + "_" + idx
-        
-        # [HA 2026 合規修正] 添加 unique_id
-        # 這讓您可以在 Home Assistant UI 中更改名稱、圖示和區域
         self._attr_unique_id = (dev['devtype'] + "_" + dev['agt'] + "_" + dev['me'] + "_" + idx).lower()
         
-        # [狀態修正] 解決「狀態相反」問題
-        # 根據您的回饋與通用邏輯，直接判斷數值：1=開，0=關
-        # 原代碼依賴 type 的奇偶數 (type % 2) 在某些設備上會導致反轉
-        if val['val'] == 1:
-            self._attr_is_on = True
-        else:
-            self._attr_is_on = False
+        # [回歸文檔標準]
+        # 根據 PDF Page 7: "type%2=1, indicates on (ignoring val)"
+        # 我們不再信任 val，而是嚴格檢查 type
+        self._update_from_data(val)
 
-    # [HA 2026 合規修正] 轉為異步方法 (async)
-    # 防止在主線程執行網絡請求導致系統卡頓或崩潰
+    def _update_from_data(self, data):
+        """根據數據更新狀態"""
+        if 'type' in data:
+            if data['type'] % 2 == 1:
+                self._attr_is_on = True
+            else:
+                self._attr_is_on = False
+        elif 'val' in data:
+            # Fallback: 萬一沒有 type 才看 val
+            self._attr_is_on = (data['val'] == 1)
+
+    async def async_added_to_hass(self):
+        """訂閱更新"""
+        self.async_on_remove(
+            self.hass.helpers.dispatcher.async_dispatcher_connect(
+                f"lifesmart_update_{self._attr_unique_id}", self._handle_update
+            )
+        )
+
+    @property
+    def is_on(self):
+        return self._attr_is_on
+
+    @property
+    def should_poll(self):
+        return False
+
+    async def _handle_update(self, data):
+        """處理 WebSocket 推送過來的更新"""
+        self._update_from_data(data)
+        self.async_write_ha_state()
+
     async def async_turn_on(self, **kwargs):
         """Turn the device on."""
         await self.hass.async_add_executor_job(self._turn_on_sync)
 
     def _turn_on_sync(self):
-        # 開啟指令：標準為 0x81，數值 1
+        # 開啟指令: 0x81
         if super()._lifesmart_epset(self, "0x81", 1, self._idx) == 0:
             self._attr_is_on = True
             self.schedule_update_ha_state()
@@ -60,10 +83,7 @@ class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
         await self.hass.async_add_executor_job(self._turn_off_sync)
 
     def _turn_off_sync(self):
-        # [OFF 無效修正] 
-        # 依據 LifeSmart Device Attribute List 文檔 (Page 6, 7, 15)：
-        # "To turn off the switch, issue: type=0x80 val=0"
-        # 舊代碼錯誤使用 0x81，導致無法關閉
+        # 關閉指令: 0x80 (修正後的正確指令)
         if super()._lifesmart_epset(self, "0x80", 0, self._idx) == 0:
             self._attr_is_on = False
             self.schedule_update_ha_state()
