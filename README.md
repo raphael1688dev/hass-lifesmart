@@ -69,4 +69,110 @@ lifesmart:
   exclude:
     - "0011" #需屏蔽设备的me值,这个暂时为必填项，可以填任意内容
 ```
+
+Here is the complete authentication workflow for LifeSmart, formatted in English Markdown. I have included specific commands for both **Linux/macOS** and **Windows (CMD)** to avoid the syntax errors you encountered earlier.
+
+---
+
+# LifeSmart API Authentication Workflow
+
+This guide details the two-step process to obtain a valid `usertoken` for the LifeSmart API.
+
+## Prerequisites
+
+Before you begin, ensure you have the following information:
+
+* **Your Account Email**
+* **Your Account Password**
+* **App Key** (Obtained from the LifeSmart developer website)
+
+---
+
+## Step 1: Initial Login
+
+**Endpoint:** `https://api.ilifesmart.com/app/auth.login`
+
+**Goal:** Retrieve the temporary `token`, `userid`, and region code (`rgn`).
+
+### Option A: macOS / Linux / PowerShell (Single Line)
+
+```bash
+curl -X POST "https://api.ilifesmart.com/app/auth.login" -H "Content-Type: application/json" -d '{"uid": "YOUR_EMAIL", "pwd": "YOUR_PASSWORD", "appkey": "YOUR_APP_KEY"}'
+
+```
+
+### Option B: Windows Command Prompt (CMD)
+
+*Note: Windows CMD requires escaping double quotes (`\"`) inside the JSON.*
+
+```cmd
+curl -X POST "https://api.ilifesmart.com/app/auth.login" -H "Content-Type: application/json" -d "{\"uid\": \"YOUR_EMAIL\", \"pwd\": \"YOUR_PASSWORD\", \"appkey\": \"YOUR_APP_KEY\"}"
+
+```
+
+### Expected Response
+
+Save the values from this response for Step 2.
+
+```json
+{
+  "code": 200,
+  "msg": "success",
+  "token": "EXAMPLE_TOKEN_123",
+  "userid": "EXAMPLE_USER_ID_456",
+  "rgn": "sg"
+}
+
+```
+
+---
+
+## Step 2: Authorize & Get User Token
+
+**Endpoint:** `https://api.ilifesmart.com/app/auth.do_auth`
+
+**Goal:** Exchange the temporary token for the permanent `usertoken`.
+
+**Required Data from Step 1:**
+
+1. `userid`
+2. `token`
+3. `rgn`
+
+### Option A: macOS / Linux / PowerShell (Single Line)
+
+```bash
+curl -X POST "https://api.ilifesmart.com/app/auth.do_auth" -H "Content-Type: application/json" -d '{"userid": "USER_ID_FROM_STEP_1", "token": "TOKEN_FROM_STEP_1", "appkey": "YOUR_APP_KEY", "rgn": "RGN_FROM_STEP_1"}'
+
+```
+
+### Option B: Windows Command Prompt (CMD)
+
+```cmd
+curl -X POST "https://api.ilifesmart.com/app/auth.do_auth" -H "Content-Type: application/json" -d "{\"userid\": \"USER_ID_FROM_STEP_1\", \"token\": \"TOKEN_FROM_STEP_1\", \"appkey\": \"YOUR_APP_KEY\", \"rgn\": \"RGN_FROM_STEP_1\"}"
+
+```
+
+### Expected Response
+
+This contains your final User Token.
+
+```json
+{
+  "code": 200,
+  "msg": "success",
+  "usertoken": "YOUR_FINAL_USER_TOKEN"
+}
+
+```
+
+---
+
+## Troubleshooting
+
+* **Syntax Errors:** If the command fails to send, ensure you are using the **Single Line** versions provided above.
+* **Windows Users:** If using the standard Command Prompt (cmd.exe), you **must** use the "Option B" syntax where inner quotes are escaped like `\"`.
+* **App Key:** Ensure the `appkey` is exactly the same in both Step 1 and Step 2.
+
+Would you like me to help you format a request to control a device once you have the `usertoken`?
     
