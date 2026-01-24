@@ -3,12 +3,12 @@ import logging
 import json
 import time
 import hashlib
-import urllib.request # 雖然保留 import，但會移至 executor 執行
+import urllib.request 
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_HS_COLOR,
-    ColorMode, # [新增] 引入現代 ColorMode
+    ColorMode,
     LightEntity,
     LightEntityFeature,
 )
@@ -37,15 +37,11 @@ class LifeSmartLight(LifeSmartDevice, LightEntity):
         """Initialize the LifeSmartLight."""
         super().__init__(dev, idx, val, param)
         self._attr_name = dev['name'] + "_" + idx
-        
-        # [修復] 添加 unique_id，移除 entity_id 強制賦值
         self._attr_unique_id = (dev['devtype'] + "_" + dev['agt'] + "_" + dev['me'] + "_" + idx).lower()
         
         self._hs_color = None
         self._brightness = 0
         
-        # [修復] 使用 ColorMode 取代舊的 SUPPORT_ flags
-        # 根據 idx 判斷是否為彩光
         if idx in ["RGB", "RGBW"]:
             self._attr_supported_color_modes = {ColorMode.HS}
             self._attr_color_mode = ColorMode.HS
@@ -55,23 +51,21 @@ class LifeSmartLight(LifeSmartDevice, LightEntity):
 
     @property
     def brightness(self):
-        """Return the brightness of the light."""
         return self._brightness
 
     @property
     def hs_color(self):
-        """Return the hs color value."""
         return self._hs_color
 
     @property
     def is_on(self):
         """Return true if it is on."""
-        # 簡單判斷：亮度大於 0 或有顏色即為開
+        # 根據文檔: type%2=1 為開
+        # 但為了保險，結合 val 判斷
         if self._attr_color_mode == ColorMode.HS:
              return self._hs_color is not None
         return self._brightness > 0
 
-    # [關鍵修復] 轉為異步方法，並將阻塞操作放入 Executor
     async def async_turn_on(self, **kwargs):
         """Turn on the light."""
         await self.hass.async_add_executor_job(self._turn_on_sync, kwargs)
@@ -91,15 +85,13 @@ class LifeSmartLight(LifeSmartDevice, LightEntity):
             
         if ATTR_BRIGHTNESS in kwargs:
             self._brightness = kwargs[ATTR_BRIGHTNESS]
-            # 轉換 0-255 到 LifeSmart 的範圍 (假設是 0-100 或類似，這裡保留原邏輯概念，需視設備而定)
-            # 原代碼似乎是用 type 0x81 + val 來設定
-            # 這裡假設直接傳送亮度值
+            # 根據文檔 ，設定數值使用 0x81 (或 0xff 設定顏色)
             super()._lifesmart_epset(self, "0x81", self._brightness, self._idx)
         
-        # 如果沒有參數，預設開啟
         if not kwargs:
             self._brightness = 255
-            super()._lifesmart_epset(self, "0x81", 255, self._idx)
+            # 文檔: Turn on the light: type=0x81 val=1
+            super()._lifesmart_epset(self, "0x81", 1, self._idx)
 
     async def async_turn_off(self, **kwargs):
         """Turn off the light."""
@@ -108,42 +100,7 @@ class LifeSmartLight(LifeSmartDevice, LightEntity):
     def _turn_off_sync(self):
         self._brightness = 0
         self._hs_color = None
+        # [關鍵修正] 根據文檔 
+        # Turn off the light: type=0x80 val=0
+        # 舊代碼錯誤地使用了 0x81
         super()._lifesmart_epset(self, "0x80", 0, self._idx)
-
-    # [關鍵修復] 靜態方法包含 urllib，必須小心處理
-    # 這裡將其封裝為實例方法調用，或保留為同步但需在 executor 中呼叫
-    @staticmethod
-    def _lifesmart_GetRemotes(self, ai):
-        # 此方法包含 urllib，絕對不能在事件循環中直接呼叫
-        # 必須確保呼叫此方法的地方都使用了 await hass.async_add_executor_job
-        appkey = self._appkey
-        apptoken = self._apptoken
-        usertoken = self._usertoken
-        userid = self._userid
-        agt = self._agt
-        url = "https://api.ilifesmart.com/app/irapi.GetRemote"
-        tick = int(time.time())
-        sdata = "method:GetRemote,agt:"+agt+",ai:"+ai+",needKeys:2,time:"+str(tick)+",userid:"+userid+",usertoken:"+usertoken+",appkey:"+appkey+",apptoken:"+apptoken
-        sign = hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
-        send_values ={
-          "id": 1,
-          "method": "GetRemote",
-          "params": {
-              "agt": agt,
-              "ai": ai,
-              "needKeys": 2
-          },
-          "system": {
-          "ver": "1.0",
-          "lang": "en",
-          "userid": userid,
-          "appkey": appkey,
-          "time": tick,
-          "sign": sign
-          }
-        }
-        header = {'Content-Type': 'application/json'}
-        send_data = json.dumps(send_values)
-        req = urllib.request.Request(url=url, data=send_data.encode('utf-8'), headers=header, method='POST')
-        response = json.loads(urllib.request.urlopen(req).read().decode('utf-8'))
-        return response['message']
