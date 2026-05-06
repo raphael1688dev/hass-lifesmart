@@ -1,12 +1,10 @@
-"""lifesmart by @skyzhishui (Final Fix with Dispatcher)"""
-import urllib.request
+"""lifesmart by @skyzhishui (Optimized Async Version with Dispatcher)"""
 import json
 import time
 import hashlib
 import logging
-import threading
-import websocket
 import asyncio
+import aiohttp
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.components.climate.const import HVACMode, FAN_HIGH, FAN_LOW, FAN_MEDIUM
@@ -14,6 +12,7 @@ from homeassistant.core import callback, HomeAssistant
 from homeassistant.helpers import discovery
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,66 +37,43 @@ OT_SENSOR_TYPES = ["SL_SC_MHW", "SL_SC_BM", "SL_SC_G", "SL_SC_BG"]
 LOCK_TYPES = ["SL_LK_LS", "SL_LK_GTM", "SL_LK_AG", "SL_LK_SG", "SL_LK_YL"]
 CLIMATE_TYPES = ["V_AIR_P", "SL_CP_DN"]
 
-def lifesmart_EpGetAll(appkey, apptoken, usertoken, userid):
+# 通用 MD5 簽名產生器
+def generate_signature(sdata):
+    return hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
+
+# 全面改用 aiohttp 進行非同步 HTTP 請求 (維持美國伺服器)
+async def async_lifesmart_EpGetAll(hass, appkey, apptoken, usertoken, userid):
     url = "https://api.us.ilifesmart.com/app/api.EpGetAll"
     tick = int(time.time())
-    sdata = "method:EpGetAll,time:"+str(tick)+",userid:"+userid+",usertoken:"+usertoken+",appkey:"+appkey+",apptoken:"+apptoken
-    sign = hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
+    sdata = f"method:EpGetAll,time:{tick},userid:{userid},usertoken:{usertoken},appkey:{appkey},apptoken:{apptoken}"
+    sign = generate_signature(sdata)
     send_values = {
       "id": 1, "method": "EpGetAll",
       "system": {"ver": "1.0", "lang": "en", "userid": userid, "appkey": appkey, "time": tick, "sign": sign}
     }
-    header = {'Content-Type': 'application/json'}
+    
+    session = async_get_clientsession(hass)
     try:
-        req = urllib.request.Request(url=url, data=json.dumps(send_values).encode('utf-8'), headers=header, method='POST')
-        response = json.loads(urllib.request.urlopen(req).read().decode('utf-8'))
-        if response['code'] == 0:
-            return response['message']
-        return False
+        async with session.post(url, json=send_values) as response:
+            res = await response.json()
+            if res.get('code') == 0:
+                return res.get('message')
     except Exception as e:
         _LOGGER.error("EpGetAll error: %s", e)
-        return False
-
-def lifesmart_Sendkeys(appkey, apptoken, usertoken, userid, agt, ai, me, category, brand, keys):
-    url = "https://api.us.ilifesmart.com/app/irapi.SendKeys"
-    tick = int(time.time())
-    sdata = "method:SendKeys,agt:"+agt+",ai:"+ai+",brand:"+brand+",category:"+category+",keys:"+keys+",me:"+me+",time:"+str(tick)+",userid:"+userid+",usertoken:"+usertoken+",appkey:"+appkey+",apptoken:"+apptoken
-    sign = hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
-    send_values = {
-      "id": 1, "method": "SendKeys",
-      "params": {"agt": agt, "me": me, "category": category, "brand": brand, "ai": ai, "keys": keys},
-      "system": {"ver": "1.0", "lang": "en", "userid": userid, "appkey": appkey, "time": tick, "sign": sign}
-    }
-    header = {'Content-Type': 'application/json'}
-    req = urllib.request.Request(url=url, data=json.dumps(send_values).encode('utf-8'), headers=header, method='POST')
-    return json.loads(urllib.request.urlopen(req).read().decode('utf-8'))
-
-def lifesmart_Sendackeys(appkey, apptoken, usertoken, userid, agt, ai, me, category, brand, keys, power, mode, temp, wind, swing):
-    url = "https://api.us.ilifesmart.com/app/irapi.SendACKeys"
-    tick = int(time.time())
-    sdata = "method:SendACKeys,agt:"+agt+",ai:"+ai+",brand:"+brand+",category:"+category+",keys:"+keys+",me:"+me+",mode:"+str(mode)+",power:"+str(power)+",swing:"+str(swing)+",temp:"+str(temp)+",wind:"+str(wind)+",time:"+str(tick)+",userid:"+userid+",usertoken:"+usertoken+",appkey:"+appkey+",apptoken:"+apptoken
-    sign = hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
-    send_values = {
-      "id": 1, "method": "SendACKeys",
-      "params": {"agt": agt, "me": me, "category": category, "brand": brand, "ai": ai, "keys": keys, "power": power, "mode": mode, "temp": temp, "wind": wind, "swing": swing},
-      "system": {"ver": "1.0", "lang": "en", "userid": userid, "appkey": appkey, "time": tick, "sign": sign}
-    }
-    header = {'Content-Type': 'application/json'}
-    req = urllib.request.Request(url=url, data=json.dumps(send_values).encode('utf-8'), headers=header, method='POST')
-    return json.loads(urllib.request.urlopen(req).read().decode('utf-8'))
+    return False
 
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the lifesmart component."""
     if DOMAIN not in config: return True
     conf = config[DOMAIN]
+    
     param = {
         'appkey': conf[CONF_LIFESMART_APPKEY], 'apptoken': conf[CONF_LIFESMART_APPTOKEN],
         'usertoken': conf[CONF_LIFESMART_USERTOKEN], 'userid': conf[CONF_LIFESMART_USERID]
     }
     exclude_items = conf.get(CONF_EXCLUDE_ITEMS, [])
     
-    # [Fix] 異步獲取設備
-    devices = await hass.async_add_executor_job(lifesmart_EpGetAll, param['appkey'], param['apptoken'], param['usertoken'], param['userid'])
+    devices = await async_lifesmart_EpGetAll(hass, param['appkey'], param['apptoken'], param['usertoken'], param['userid'])
     if not devices: return True
 
     for dev in devices:
@@ -105,6 +81,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
         devtype = dev['devtype']
         dev['agt'] = dev['agt'].replace("_", "")
         platform = None
+        
         if devtype in SWTICH_TYPES: platform = "switch"
         elif devtype in BINARY_SENSOR_TYPES: platform = "binary_sensor"
         elif devtype in COVER_TYPES: platform = "cover"
@@ -114,69 +91,22 @@ async def async_setup(hass: HomeAssistant, config: dict):
         elif devtype in LIGHT_SWITCH_TYPES: platform = "light"
         
         if platform:
-            discovery.load_platform(hass, platform, DOMAIN, {"dev": dev, "param": param}, config)
+            hass.async_create_task(
+                discovery.async_load_platform(hass, platform, DOMAIN, {"dev": dev, "param": param}, config)
+            )
 
-    async def async_send_keys(call):
-        await hass.async_add_executor_job(lifesmart_Sendkeys, param['appkey'], param['apptoken'], param['usertoken'], param['userid'], call.data['agt'], call.data['ai'], call.data['me'], call.data['category'], call.data['brand'], call.data['keys'])
-    
-    async def async_send_ackeys(call):
-        await hass.async_add_executor_job(lifesmart_Sendackeys, param['appkey'], param['apptoken'], param['usertoken'], param['userid'], call.data['agt'], call.data['ai'], call.data['me'], call.data['category'], call.data['brand'], call.data['keys'], call.data['power'], call.data['mode'], call.data['temp'], call.data['wind'], call.data['swing'])
-
-    hass.services.async_register(DOMAIN, 'send_keys', async_send_keys)
-    hass.services.async_register(DOMAIN, 'send_ackeys', async_send_ackeys)
-
-    @callback
-    def handle_event_in_main_thread(msg):
-        # [Debug] 打印收到的訊息，幫助排查
-        _LOGGER.debug(f"LifeSmart WS Event: {msg}")
-        
-        data = msg['msg']
-        if data['idx'] == "s" or data['me'] in exclude_items: return
-        
-        devtype = data['devtype']
-        agt = data['agt'].replace("_", "")
-        idx = data['idx']
-        
-        # 構建 Unique ID (必須與 switch.py 一致)
-        unique_id = (devtype + "_" + agt + "_" + data['me'] + "_" + idx).lower()
-        
-        # 使用 Dispatcher 發送更新信號給對應的實體
-        async_dispatcher_send(hass, f"lifesmart_update_{unique_id}", data)
-
-    def on_message(ws, message):
-        if not message: return
-        try:
-            msg = json.loads(message)
-            if msg.get('type') != "io": return
-            hass.add_job(handle_event_in_main_thread, msg)
-        except Exception as e:
-            _LOGGER.error(f"WS Decode Error: {e}")
-
-    def on_error(ws, error):
-        _LOGGER.error(f"WS Error: {error}")
-
-    def on_close(ws, *args):
-        _LOGGER.debug("WS Closed")
-
-    def on_open(ws):
-        tick = int(time.time())
-        sdata = "method:WbAuth,time:"+str(tick)+",userid:"+param['userid']+",usertoken:"+param['usertoken']+",appkey:"+param['appkey']+",apptoken:"+param['apptoken']
-        sign = hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
-        send_values = {"id": 1, "method": "WbAuth", "system": {"ver": "1.0", "lang": "en", "userid": param['userid'], "appkey": param['appkey'], "time": tick, "sign": sign}}
-        ws.send(json.dumps(send_values))
-
-    ws = websocket.WebSocketApp("wss://api.us.ilifesmart.com:8443/wsapp/", on_message=on_message, on_error=on_error, on_close=on_close)
-    ws.on_open = on_open
-    
-    manager = LifeSmartStatesManager(ws)
+    # 啟動基於 aiohttp 的非同步 WebSocket 管理器
+    manager = LifeSmartStatesManager(hass, param, exclude_items)
     hass.data[LifeSmart_STATE_MANAGER] = manager
-    manager.start_keep_alive()
+    await manager.start()
 
-    def stop_lifesmart(event):
-        manager.stop_keep_alive()
+    async def stop_lifesmart(event):
+        await manager.stop()
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, stop_lifesmart)
+    
     return True
 
+# 基礎 Entity 類別 (修復 staticmethod 與同步 I/O 問題)
 class LifeSmartDevice(Entity):
     def __init__(self, dev, idx, val, param):
         self._attr_name = dev['name'] + "_" + idx
@@ -191,37 +121,84 @@ class LifeSmartDevice(Entity):
         self._attr_extra_state_attributes = {"agt": self._agt, "me": self._me, "idx": self._idx, "devtype": self._devtype}
         self._attr_should_poll = False
 
-    @staticmethod
-    def _lifesmart_epset(self, type, val, idx):
+    async def async_lifesmart_epset(self, type_val, val, idx):
+        """非同步呼叫 API，避免阻塞 HA 事件迴圈"""
         url = "https://api.us.ilifesmart.com/app/api.EpSet"
         tick = int(time.time())
-        sdata = "method:EpSet,agt:"+ self._agt +",idx:"+idx+",me:"+self._me+",type:"+type+",val:"+str(val)+",time:"+str(tick)+",userid:"+self._userid+",usertoken:"+self._usertoken+",appkey:"+self._appkey+",apptoken:"+self._apptoken
-        sign = hashlib.md5(sdata.encode(encoding='UTF-8')).hexdigest()
+        sdata = f"method:EpSet,agt:{self._agt},idx:{idx},me:{self._me},type:{type_val},val:{val},time:{tick},userid:{self._userid},usertoken:{self._usertoken},appkey:{self._appkey},apptoken:{self._apptoken}"
+        sign = generate_signature(sdata)
         send_values = {
           "id": 1, "method": "EpSet",
           "system": {"ver": "1.0", "lang": "en", "userid": self._userid, "appkey": self._appkey, "time": tick, "sign": sign},
-          "params": {"agt": self._agt, "me": self._me, "idx": idx, "type": type, "val": val}
+          "params": {"agt": self._agt, "me": self._me, "idx": idx, "type": type_val, "val": val}
         }
-        header = {'Content-Type': 'application/json'}
+        
+        session = async_get_clientsession(self.hass)
         try:
-            req = urllib.request.Request(url=url, data=json.dumps(send_values).encode('utf-8'), headers=header, method='POST')
-            response = json.loads(urllib.request.urlopen(req).read().decode('utf-8'))
-            return response['code']
-        except Exception:
+            async with session.post(url, json=send_values) as response:
+                res = await response.json()
+                return res.get('code', -1)
+        except Exception as e:
+            _LOGGER.error("EpSet error: %s", e)
             return -1
 
-class LifeSmartStatesManager(threading.Thread):
-    def __init__(self, ws):
-        threading.Thread.__init__(self)
+# 改用 aiohttp WS，徹底放棄會阻塞的 threading 模式
+class LifeSmartStatesManager:
+    def __init__(self, hass, param, exclude_items):
+        self.hass = hass
+        self.param = param
+        self.exclude_items = exclude_items
+        self._ws = None
         self._run = False
-        self._ws = ws
-    def run(self):
-        while self._run:
-            self._ws.run_forever()
-            time.sleep(10)
-    def start_keep_alive(self):
+
+    async def start(self):
         self._run = True
-        self.start()
-    def stop_keep_alive(self):
+        self.hass.loop.create_task(self.ws_loop())
+
+    async def stop(self):
         self._run = False
-        self._ws.close()
+        if self._ws:
+            await self._ws.close()
+
+    async def ws_loop(self):
+        url = "wss://api.us.ilifesmart.com:8443/wsapp/"
+        session = async_get_clientsession(self.hass)
+        
+        while self._run:
+            try:
+                # 啟用 heartbeat 定期發送 Ping，防止被 Server 端主動斷連
+                async with session.ws_connect(url, heartbeat=30.0) as ws:
+                    self._ws = ws
+                    _LOGGER.info("LifeSmart WebSocket Connected")
+                    
+                    tick = int(time.time())
+                    sdata = f"method:WbAuth,time:{tick},userid:{self.param['userid']},usertoken:{self.param['usertoken']},appkey:{self.param['appkey']},apptoken:{self.param['apptoken']}"
+                    sign = generate_signature(sdata)
+                    auth_msg = {"id": 1, "method": "WbAuth", "system": {"ver": "1.0", "lang": "en", "userid": self.param['userid'], "appkey": self.param['appkey'], "time": tick, "sign": sign}}
+                    await ws.send_json(auth_msg)
+
+                    async for msg in ws:
+                        if msg.type == aiohttp.WSMsgType.TEXT:
+                            data = json.loads(msg.data)
+                            if data.get('type') == 'io':
+                                self.handle_event(data['msg'])
+                        elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                            break
+            except Exception as e:
+                _LOGGER.error("LifeSmart WS Error: %s", e)
+            
+            if self._run:
+                await asyncio.sleep(10) # 斷線後延遲重連
+
+    def handle_event(self, data):
+        if data.get('idx') == "s" or data.get('me') in self.exclude_items:
+            return
+            
+        devtype = data.get('devtype')
+        agt = data.get('agt', '').replace("_", "")
+        idx = data.get('idx')
+        me = data.get('me')
+        
+        if devtype and agt and idx and me:
+            unique_id = f"{devtype}_{agt}_{me}_{idx}".lower()
+            async_dispatcher_send(self.hass, f"lifesmart_update_{unique_id}", data)
