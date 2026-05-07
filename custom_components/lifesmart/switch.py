@@ -1,30 +1,39 @@
-"""lifesmart switch."""
+"""lifesmart switch (Config Flow Edition)."""
 import logging
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.core import callback
+from homeassistant.core import callback, HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 
 from . import LifeSmartDevice
+from .const import DOMAIN, SWTICH_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
-# 改用 async_setup_platform 來配合非同步建置
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Find and return lifesmart switches."""
-    if discovery_info is None:
-        return
-        
-    dev = discovery_info.get("dev")
-    param = discovery_info.get("param")
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
+    """透過 Config Entry 設定 LifeSmart 開關設備"""
+    # 從 hass.data 取得在 __init__.py 中初始化的資料
+    entry_data = hass.data[DOMAIN][config_entry.entry_id]
+    param = entry_data["param"]
+    devices_list = entry_data.get("devices", [])
+    exclude_items = entry_data.get("exclude_items", [])
+    
     devices = []
     
-    # 使用 .get 確保防呆
-    for idx in dev.get('data', {}):
-        if idx in ["L1", "L2", "L3", "P1", "P2", "P3"]:
-            devices.append(LifeSmartSwitch(dev, idx, dev['data'][idx], param))
+    for dev in devices_list:
+        if dev['me'] in exclude_items:
+            continue
             
+        if dev['devtype'] in SWTICH_TYPES:
+            # 確保 agt 字串乾淨，與 Dispatcher 和 Unique ID 匹配
+            dev['agt'] = dev['agt'].replace("_", "")
+            
+            for idx in dev.get('data', {}):
+                # 篩選出屬於開關的通訊埠
+                if idx in ["L1", "L2", "L3", "P1", "P2", "P3"]:
+                    devices.append(LifeSmartSwitch(dev, idx, dev['data'][idx], param))
+                    
     async_add_entities(devices)
-    return True
 
 class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
     """Representation of a LifeSmart Switch."""
@@ -35,6 +44,7 @@ class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
         self._attr_unique_id = f"{dev['devtype']}_{dev['agt']}_{dev['me']}_{idx}".lower()
         self._attr_is_on = False 
         
+        # 根據系統啟動時撈到的數據更新初始狀態
         self._update_from_data(val)
 
     def _update_from_data(self, data):
@@ -84,19 +94,20 @@ class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
 
     @callback
     def _handle_update(self, data):
-        """處理 WebSocket 推送過來的更新"""
+        """處理 WebSocket 推送過來的即時狀態更新"""
         self._update_from_data(data)
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs):
-        """Turn the device on (非同步操作)."""
-        # 直接等待父類別的非同步 epset
+        """開啟設備 (完全非同步操作)"""
+        # 直接呼叫父類別的非同步 epset，"0x81" 代表開啟
         if await self.async_lifesmart_epset("0x81", 1, self._idx) == 0:
             self._attr_is_on = True
             self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
-        """Turn the device off (非同步操作)."""
+        """關閉設備 (完全非同步操作)"""
+        # "0x80" 代表關閉
         if await self.async_lifesmart_epset("0x80", 0, self._idx) == 0:
             self._attr_is_on = False
             self.async_write_ha_state()
