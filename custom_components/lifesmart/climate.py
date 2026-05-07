@@ -66,6 +66,8 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
         
         clean_agt = dev['agt'].replace("_", "")
         self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}".lower()
+        # 新增這行
+        self.entity_id = f"climate.{dev['devtype']}_{dev['me']}".lower()
         
         self._attr_current_temperature = None
         self._attr_target_temperature = None
