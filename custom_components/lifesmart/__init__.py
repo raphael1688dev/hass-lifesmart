@@ -121,6 +121,19 @@ class LifeSmartDevice(Entity):
         self._attr_extra_state_attributes = {"agt": self._agt, "me": self._me, "idx": self._idx, "devtype": self._devtype}
         self._attr_should_poll = False
 
+    # =============== [新增這一段開始] ===============
+    @property
+    def device_info(self):
+        """Return the device info. 告訴 HA 這些實體屬於哪個硬體設備"""
+        return {
+            "identifiers": {(DOMAIN, self._me)},      # 關鍵：以設備的 'me' 作為唯一識別碼
+            "name": self._dev_name,                   # 設備的總名稱
+            "manufacturer": "LifeSmart",              # 製造商名稱
+            "model": self._devtype,                   # 設備型號
+            "via_device": (DOMAIN, self._agt),        # 標示此設備是透過哪個智慧中心連接的
+        }
+    # =============== [新增這一段結束] ===============
+
     async def async_lifesmart_epset(self, type_val, val, idx):
         """非同步呼叫 API，避免阻塞 HA 事件迴圈"""
         url = "https://api.us.ilifesmart.com/app/api.EpSet"
