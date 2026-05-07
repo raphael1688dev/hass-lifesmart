@@ -1,4 +1,4 @@
-"""lifesmart by @raphael1688dev (Config Flow Edition)"""
+"""lifesmart by @skyzhishui (Config Flow Edition with Device Registry Fix)"""
 import json
 import time
 import hashlib
@@ -89,50 +89,45 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 class LifeSmartDevice(Entity):
-    """基礎設備類別保持不變，保留 DeviceInfo"""
+    """LifeSmart 設備基礎類別"""
+    
+    # 啟用新版 HA 命名規範：實體名稱 = 設備名稱 + 索引名稱
+    _attr_has_entity_name = True
+
     def __init__(self, dev, idx, val, param):
-        self._dev_name = dev['name'] 
-        self._attr_name = f"{dev['name']}_{idx}"
+        self._agt = dev['agt'].replace("_", "")
+        self._me = str(dev['me']) # 確保為字串
+        self._devtype = dev['devtype']
+        self._idx = idx
+        
+        # 1. 設定 Unique ID (這是與 Device 綁定的唯一金鑰)
+        self._attr_unique_id = f"{self._devtype}_{self._agt}_{self._me}_{idx}".lower()
+        
+        # 2. 設定 Device Info (這會產生設備卡片並顯示序號，已移除 via_device)
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self._me)},
+            name=dev['name'],
+            manufacturer="LifeSmart",
+            model=self._devtype,
+            serial_number=self._me,
+            sw_version=dev.get('ver'),
+        )
+        
+        # 3. 設定實體顯示名稱 (在設備頁面顯示如 "L1", "P1")
+        self._attr_name = idx 
+        
+        # API 參數與屬性
         self._appkey = param['appkey']
         self._apptoken = param['apptoken']
         self._usertoken = param['usertoken']
         self._userid = param['userid']
-        self._agt = dev['agt']
-        self._me = dev['me']
-        self._idx = idx
-        self._devtype = dev['devtype']
-        self._attr_extra_state_attributes = {"agt": self._agt, "me": self._me, "idx": self._idx, "devtype": self._devtype}
+        self._attr_extra_state_attributes = {
+            "agt": self._agt, 
+            "me": self._me, 
+            "idx": self._idx, 
+            "devtype": self._devtype
+        }
         self._attr_should_poll = False
-
-        # [關鍵修復] 直接將 DeviceInfo 賦值給內部屬性，HA 就會無條件吃掉它
-        # 同時移除 via_device，避免因為網關不存在而導致實體被拒絕綁定
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, self._me)},
-            name=self._dev_name,
-            manufacturer="LifeSmart",
-            model=self._devtype,
-            serial_number=self._me,              # 正確載入序號
-            sw_version=dev.get('ver')            # 安全載入版本號
-        )
-        #[重要提醒] 請將原本這裡的 `@property def device_info(self): ...` 整段刪除！
-
-    #@property
-    #def device_info(self) -> DeviceInfo:
-    #    """實作設備資訊以支援 HA Device Registry"""
-    #    return DeviceInfo(
-    #        # identifiers 是 HA 內部用來綁定 Entities 的核心
-    #        identifiers={(DOMAIN, self._me)},
-    #        
-    #        # 以下欄位會顯示在前端 UI 的裝置資訊中
-    #        name=self._dev_name,
-    #        manufacturer="LifeSmart",
-    #        model=self._devtype,
-    #        serial_number=self._me,         # 將 'me' 作為序號顯示
-    #        sw_version=self._sw_version,    # 顯示軟體版本 (如有)
-    #        
-    #        # via_device 可以建立拓樸關係，標示此設備是透過哪個網關連線的
-    #        via_device=(DOMAIN, self._agt), 
-    #    )
 
     async def async_lifesmart_epset(self, type_val, val, idx):
         url = "https://api.us.ilifesmart.com/app/api.EpSet"
@@ -153,70 +148,7 @@ class LifeSmartDevice(Entity):
             _LOGGER.error("EpSet Error: %s", e)
             return -1
 
-
 class LifeSmartStatesManager:
-    """WebSocket 狀態管理器 (非同步版)"""
-    def __init__(self, hass, param, exclude_items):
-        self.hass = hass
-        self.param = param
-        self.exclude_items = exclude_items
-        self._ws = None
-        self._run = False
-
-    async def start(self):
-        self._run = True
-        self.hass.loop.create_task(self.ws_loop())
-
-    async def stop(self):
-        self._run = False
-        if self._ws:
-            await self._ws.close()
-
-    async def ws_loop(self):
-        url = "wss://api.us.ilifesmart.com:8443/wsapp/"
-        session = async_get_clientsession(self.hass)
-        
-        while self._run:
-            try:
-                async with session.ws_connect(url, heartbeat=30.0) as ws:
-                    self._ws = ws
-                    _LOGGER.info("LifeSmart WebSocket 已連線")
-                    
-                    tick = int(time.time())
-                    sdata = f"method:WbAuth,time:{tick},userid:{self.param['userid']},usertoken:{self.param['usertoken']},appkey:{self.param['appkey']},apptoken:{self.param['apptoken']}"
-                    sign = generate_signature(sdata)
-                    auth_msg = {
-                        "id": 1, "method": "WbAuth", 
-                        "system": {"ver": "1.0", "lang": "en", "userid": self.param['userid'], "appkey": self.param['appkey'], "time": tick, "sign": sign}
-                    }
-                    await ws.send_json(auth_msg)
-
-                    async for msg in ws:
-                        if msg.type == aiohttp.WSMsgType.TEXT:
-                            data = json.loads(msg.data)
-                            if data.get('type') == 'io':
-                                self.handle_event(data['msg'])
-                        elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                            break
-            except Exception as e:
-                _LOGGER.error("LifeSmart WebSocket 錯誤: %s", e)
-            
-            if self._run:
-                await asyncio.sleep(10)
-
-    def handle_event(self, data):
-        if data.get('idx') == "s" or data.get('me') in self.exclude_items:
-            return
-            
-        devtype = data.get('devtype')
-        agt = data.get('agt', '').replace("_", "")
-        idx = data.get('idx')
-        me = data.get('me')
-        
-        if devtype and agt and idx and me:
-            unique_id = f"{devtype}_{agt}_{me}_{idx}".lower()
-            async_dispatcher_send(self.hass, f"lifesmart_update_{unique_id}", data)
-
     def __init__(self, hass, param, exclude_items):
         self.hass = hass
         self.param = param
