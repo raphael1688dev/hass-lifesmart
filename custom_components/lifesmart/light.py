@@ -47,7 +47,7 @@ class LifeSmartLight(LifeSmartDevice, LightEntity):
         self._attr_name = f"{dev['name']}_{idx}"
         
         clean_agt = dev['agt'].replace("_", "")
-        self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}_{idx}".lower()
+        #self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}_{idx}".lower()
         # 新增這行
         self.entity_id = f"light.{dev['devtype']}_{dev['me']}_{idx}".lower()
         
