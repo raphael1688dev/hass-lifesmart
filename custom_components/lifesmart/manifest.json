@@ -1,17 +1,10 @@
 {
   "domain": "lifesmart",
   "name": "LifeSmart (Forked)",
-  "version": "2026.1.3",
-  "documentation": "https://github.com/raphael1688dev/hass-lifesmart",
-  "requirements": [
-    "websocket-client>=1.0"
-  ],
+  "codeowners": ["@raphael1688dev"],
+  "version": "2.1.0",
   "dependencies": [],
-  "codeowners": [
-    "@raphael1688dev"
-  ],
-  "iot_class": "cloud_polling",
-  "loggers": [
-    "custom_components.lifesmart"
-  ]
+  "iot_class": "cloud_push",
+  "config_flow": true,
+  "requirements": ["aiohttp"]
 }
