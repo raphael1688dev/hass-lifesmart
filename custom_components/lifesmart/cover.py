@@ -47,7 +47,7 @@ class LifeSmartCover(LifeSmartDevice, CoverEntity):
         self._attr_name = dev['name']
         
         clean_agt = dev['agt'].replace("_", "")
-        self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}".lower()
+        #self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}".lower()
         # 新增這行
         self.entity_id = f"cover.{dev['devtype']}_{dev['me']}".lower()
         
