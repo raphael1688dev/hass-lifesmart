@@ -6,9 +6,10 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
 )
+# [修復] 將 UnitOfIlluminance 替換回原有的 LIGHT_LUX，避免 import 錯誤
 from homeassistant.const import (
     UnitOfTemperature,
-    UnitOfIlluminance,
+    LIGHT_LUX,
     PERCENTAGE,
     CONCENTRATION_PARTS_PER_MILLION,
     CONCENTRATION_MILLIGRAMS_PER_CUBIC_METER,
@@ -76,23 +77,24 @@ class LifeSmartSensor(LifeSmartDevice, SensorEntity):
              # 燃氣類通常不需要測量單位，或者可以在此自定義
              pass 
         else:
-            if idx == "T" or (devtype == "SL_SC_CQ" and idx == "P1"): # 處理特殊感測器的溫度埠口
+            if idx == "T" or (devtype == "SL_SC_CQ" and idx == "P1"): 
                 self._attr_device_class = SensorDeviceClass.TEMPERATURE
                 self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-            elif idx == "H" or (devtype == "SL_SC_CQ" and idx == "P2"): # 處理特殊感測器的濕度埠口
+            elif idx == "H" or (devtype == "SL_SC_CQ" and idx == "P2"): 
                 self._attr_device_class = SensorDeviceClass.HUMIDITY
                 self._attr_native_unit_of_measurement = PERCENTAGE
             elif idx == "Z":
                 self._attr_device_class = SensorDeviceClass.ILLUMINANCE
-                self._attr_native_unit_of_measurement = UnitOfIlluminance.LUX
-            elif idx == "V" or idx == "P5": # P5 通常是 Env sensor 的電池電量
+                # [修復] 改回使用 LIGHT_LUX
+                self._attr_native_unit_of_measurement = LIGHT_LUX
+            elif idx == "V" or idx == "P5": 
                 self._attr_device_class = SensorDeviceClass.BATTERY
                 self._attr_native_unit_of_measurement = PERCENTAGE
             elif idx == "P3":
                 self._attr_device_class = SensorDeviceClass.CO2 
                 self._attr_native_unit_of_measurement = CONCENTRATION_PARTS_PER_MILLION
             elif idx == "P4":
-                self._attr_device_class = SensorDeviceClass.PM25 # 或是 TVOC
+                self._attr_device_class = SensorDeviceClass.PM25 
                 self._attr_native_unit_of_measurement = CONCENTRATION_MILLIGRAMS_PER_CUBIC_METER
 
         # 設定初始數值
