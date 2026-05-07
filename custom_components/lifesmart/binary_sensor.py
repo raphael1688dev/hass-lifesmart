@@ -44,7 +44,9 @@ class LifeSmartBinarySensor(LifeSmartDevice, BinarySensorEntity):
     def __init__(self, dev, idx, val, param):
         super().__init__(dev, idx, val, param)
         
-        self.entity_id = ENTITY_ID_FORMAT.format((dev['devtype'] + "_" + dev['agt'] + "_" + dev['me'] + "_" + idx).lower())
+        #self.entity_id = ENTITY_ID_FORMAT.format((dev['devtype'] + "_" + dev['agt'] + "_" + dev['me'] + "_" + idx).lower())
+        # 將原本用 ENTITY_ID_FORMAT 組合的那行替換為這行
+        self.entity_id = f"binary_sensor.{dev['devtype']}_{dev['me']}_{idx}".lower()
         
         clean_agt = dev['agt'].replace("_", "")
         self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}_{idx}".lower()
