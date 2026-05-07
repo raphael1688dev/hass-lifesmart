@@ -104,23 +104,35 @@ class LifeSmartDevice(Entity):
         self._attr_extra_state_attributes = {"agt": self._agt, "me": self._me, "idx": self._idx, "devtype": self._devtype}
         self._attr_should_poll = False
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """實作設備資訊以支援 HA Device Registry"""
-        return DeviceInfo(
-            # identifiers 是 HA 內部用來綁定 Entities 的核心
+        # [關鍵修復] 直接將 DeviceInfo 賦值給內部屬性，HA 就會無條件吃掉它
+        # 同時移除 via_device，避免因為網關不存在而導致實體被拒絕綁定
+        self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._me)},
-            
-            # 以下欄位會顯示在前端 UI 的裝置資訊中
             name=self._dev_name,
             manufacturer="LifeSmart",
             model=self._devtype,
-            serial_number=self._me,         # 將 'me' 作為序號顯示
-            sw_version=self._sw_version,    # 顯示軟體版本 (如有)
-            
-            # via_device 可以建立拓樸關係，標示此設備是透過哪個網關連線的
-            via_device=(DOMAIN, self._agt), 
+            serial_number=self._me,              # 正確載入序號
+            sw_version=dev.get('ver')            # 安全載入版本號
         )
+        #[重要提醒] 請將原本這裡的 `@property def device_info(self): ...` 整段刪除！
+
+    #@property
+    #def device_info(self) -> DeviceInfo:
+    #    """實作設備資訊以支援 HA Device Registry"""
+    #    return DeviceInfo(
+    #        # identifiers 是 HA 內部用來綁定 Entities 的核心
+    #        identifiers={(DOMAIN, self._me)},
+    #        
+    #        # 以下欄位會顯示在前端 UI 的裝置資訊中
+    #        name=self._dev_name,
+    #        manufacturer="LifeSmart",
+    #        model=self._devtype,
+    #        serial_number=self._me,         # 將 'me' 作為序號顯示
+    #        sw_version=self._sw_version,    # 顯示軟體版本 (如有)
+    #        
+    #        # via_device 可以建立拓樸關係，標示此設備是透過哪個網關連線的
+    #        via_device=(DOMAIN, self._agt), 
+    #    )
 
     async def async_lifesmart_epset(self, type_val, val, idx):
         url = "https://api.us.ilifesmart.com/app/api.EpSet"
