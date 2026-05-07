@@ -106,12 +106,20 @@ class LifeSmartDevice(Entity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        """實作設備資訊以支援 HA Device Registry"""
         return DeviceInfo(
+            # identifiers 是 HA 內部用來綁定 Entities 的核心
             identifiers={(DOMAIN, self._me)},
+            
+            # 以下欄位會顯示在前端 UI 的裝置資訊中
             name=self._dev_name,
             manufacturer="LifeSmart",
             model=self._devtype,
-            # via_device=(DOMAIN, self._agt),
+            serial_number=self._me,         # 將 'me' 作為序號顯示
+            sw_version=self._sw_version,    # 顯示軟體版本 (如有)
+            
+            # via_device 可以建立拓樸關係，標示此設備是透過哪個網關連線的
+            via_device=(DOMAIN, self._agt), 
         )
 
     async def async_lifesmart_epset(self, type_val, val, idx):
