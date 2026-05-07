@@ -1,4 +1,3 @@
-```markdown
 # LifeSmart Integration for Home Assistant
 
 A modern, high-performance, and fully asynchronous custom component to integrate LifeSmart smart home devices into Home Assistant.
@@ -45,7 +44,7 @@ curl -X POST "[https://api.ilifesmart.com/app/auth.do_auth](https://api.ilifesma
 -d '{"userid": "USER_ID_FROM_STEP_1", "token": "TOKEN_FROM_STEP_1", "appkey": "YOUR_APP_KEY", "rgn": "RGN_FROM_STEP_1"}'
 
 
-使用说明
+# 使用说明
 ==== 
 lifesmart 设备接入 HomeAssistant插件
 
