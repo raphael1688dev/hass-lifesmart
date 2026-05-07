@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up LifeSmart",
+        "data": {
+          "appkey": "App Key",
+          "apptoken": "App Token",
+          "usertoken": "User Token",
+          "userid": "User ID",
+          "exclude": "Exclude Devices (ME numbers separated by comma)"
+        }
+      }
+    }
+  }
+}
