@@ -1,4 +1,4 @@
-"""Support for the LifeSmart climate devices."""
+"""Support for the LifeSmart climate devices (Config Flow Edition)."""
 import logging
 import asyncio
 from homeassistant.components.climate import ClimateEntity
@@ -14,25 +14,20 @@ from homeassistant.const import (
     PRECISION_WHOLE,
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.core import callback
+from homeassistant.core import callback, HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 
 from . import LifeSmartDevice
+from .const import DOMAIN, CLIMATE_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
 LIFESMART_STATE_LIST = [
-    HVACMode.OFF,
-    HVACMode.AUTO,
-    HVACMode.FAN_ONLY,
-    HVACMode.COOL,
-    HVACMode.HEAT,
-    HVACMode.DRY
+    HVACMode.OFF, HVACMode.AUTO, HVACMode.FAN_ONLY,
+    HVACMode.COOL, HVACMode.HEAT, HVACMode.DRY
 ]
 
-LIFESMART_STATE_LIST2 = [
-    HVACMode.OFF,
-    HVACMode.HEAT
-]
+LIFESMART_STATE_LIST2 = [HVACMode.OFF, HVACMode.HEAT]
 
 FAN_MODES = [FAN_LOW, FAN_MEDIUM, FAN_HIGH]
 GET_FAN_SPEED = {FAN_LOW: 15, FAN_MEDIUM: 45, FAN_HIGH: 76}
@@ -40,31 +35,35 @@ GET_FAN_SPEED = {FAN_LOW: 15, FAN_MEDIUM: 45, FAN_HIGH: 76}
 AIR_TYPES = ["V_AIR_P"]
 THER_TYPES = ["SL_CP_DN"]
 
-# 改為非同步 Setup
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up LifeSmart Climate devices."""
-    if discovery_info is None:
-        return
-    dev = discovery_info.get("dev")
-    param = discovery_info.get("param")
-    region = discovery_info.get("region", "us")
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
+    """透過 Config Entry 設定 LifeSmart 空調設備"""
+    entry_data = hass.data[DOMAIN][config_entry.entry_id]
+    param = entry_data["param"]
+    devices_list = entry_data.get("devices", [])
+    exclude_items = entry_data.get("exclude_items", [])
     
-    # 優化判斷邏輯，防止 Key Error
-    if "T" not in dev.get('data', {}) and "P3" not in dev.get('data', {}):
-        return
-        
-    async_add_entities([LifeSmartClimateDevice(dev, "idx", "0", param, region)])
+    devices = []
+    for dev in devices_list:
+        if dev['me'] in exclude_items:
+            continue
+            
+        if dev['devtype'] in CLIMATE_TYPES:
+            dev['agt'] = dev['agt'].replace("_", "")
+            if "T" not in dev.get('data', {}) and "P3" not in dev.get('data', {}):
+                continue
+            devices.append(LifeSmartClimateDevice(dev, "idx", "0", param))
+            
+    async_add_entities(devices)
 
 class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
     """LifeSmart climate devices, include air conditioner, heater."""
 
-    def __init__(self, dev, idx, val, param, region):
+    def __init__(self, dev, idx, val, param):
         """Init LifeSmart climate device."""
-        super().__init__(dev, idx, val, param, region)
+        super().__init__(dev, idx, val, param)
         self._attr_name = dev['name']
         cdata = dev['data']
         
-        # 確保 agt 是乾淨的，對齊 Dispatcher
         clean_agt = dev['agt'].replace("_", "")
         self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}".lower()
         
@@ -72,17 +71,14 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
         self._attr_target_temperature = None
         self._fanspeed = 0
         
-        # 初始狀態解析
         self._parse_initial_data(cdata)
 
     def _parse_initial_data(self, cdata):
-        """安全解析初始資料"""
         if self._devtype in AIR_TYPES:
             self._attr_hvac_modes = LIFESMART_STATE_LIST
             o_port = cdata.get('O', {})
             mode_port = cdata.get('MODE', {})
             
-            # 安全取值與型別轉換
             type_val = o_port.get('type', 0)
             if isinstance(type_val, str):
                 type_val = int(type_val, 16) if type_val.startswith('0x') else int(type_val)
@@ -96,7 +92,6 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
                 else:
                     self._attr_hvac_mode = HVACMode.AUTO
             
-            # 解析溫度與風速
             t_data = cdata.get('T', {})
             tt_data = cdata.get('tT', {})
             self._attr_current_temperature = t_data.get('v', t_data.get('val', 0) / 10.0)
@@ -108,7 +103,6 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
         else:
             self._attr_hvac_modes = LIFESMART_STATE_LIST2
             p1_port = cdata.get('P1', {})
-            p2_port = cdata.get('P2', {})
             
             type_val = p1_port.get('type', 0)
             if isinstance(type_val, str):
@@ -128,9 +122,6 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
             self._attr_max_temp = 35
 
     async def async_added_to_hass(self):
-        """訂閱 WebSocket 更新。
-        由於 Climate 設備涉及多個 IO ports，我們需要訂閱所有相關的 Ports。
-        """
         listen_ports = ["O", "MODE", "F", "tT", "T"] if self._devtype in AIR_TYPES else ["P1", "P2", "P3", "P4"]
         clean_agt = self._agt.replace("_", "")
         
@@ -146,7 +137,6 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
 
     @callback
     def _handle_update(self, data):
-        """處理 WebSocket 推送過來的單一 IO 更新"""
         idx = data.get('idx')
         val = data.get('val')
         v = data.get('v')
@@ -172,7 +162,7 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
                 self._attr_target_temperature = v if v is not None else (val_int / 10.0 if val_int else None)
             elif idx == "F" and val_int is not None:
                 self._fanspeed = val_int
-        else: # THER_TYPES
+        else:
             if idx == "P1":
                 type_val = data.get('type', 0)
                 if isinstance(type_val, str):
@@ -202,12 +192,9 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
 
     @property
     def fan_mode(self):
-        if self._fanspeed < 30:
-            return FAN_LOW
-        elif 30 <= self._fanspeed < 65:
-            return FAN_MEDIUM
-        else:
-            return FAN_HIGH
+        if self._fanspeed < 30: return FAN_LOW
+        elif 30 <= self._fanspeed < 65: return FAN_MEDIUM
+        else: return FAN_HIGH
 
     @property
     def fan_modes(self):
@@ -215,15 +202,12 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
 
     @property
     def supported_features(self):
-        """Return the list of supported features."""
         features = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.TURN_ON | ClimateEntityFeature.TURN_OFF
         if self._devtype in AIR_TYPES:
             features |= ClimateEntityFeature.FAN_MODE
         return features
 
-    # 全部改為原生非同步方法 (Native Async)
     async def async_set_temperature(self, **kwargs):
-        """Set new target temperature."""
         new_temp = int(kwargs['temperature'] * 10)
         if self._devtype in AIR_TYPES:
             await self.async_lifesmart_epset("0x88", new_temp, "tT")
@@ -231,23 +215,18 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
             await self.async_lifesmart_epset("0x88", new_temp, "P3")
 
     async def async_set_fan_mode(self, fan_mode):
-        """Set new target fan mode."""
         await self.async_lifesmart_epset("0xCE", GET_FAN_SPEED[fan_mode], "F")
 
     async def async_set_hvac_mode(self, hvac_mode):
-        """Set new target operation mode."""
         if self._devtype in AIR_TYPES:
             if hvac_mode == HVACMode.OFF:
                 await self.async_lifesmart_epset("0x80", 0, "O")
                 return
-            
-            # 如果是從關閉狀態開啟，先發送開啟指令並使用非阻塞等待
             if self.hvac_mode == HVACMode.OFF:
                 if await self.async_lifesmart_epset("0x81", 1, "O") == 0:
-                    await asyncio.sleep(2) # [修復] 使用無阻塞的 asyncio.sleep
+                    await asyncio.sleep(2)
                 else:
                     return
-            
             if hvac_mode in LIFESMART_STATE_LIST:
                 await self.async_lifesmart_epset("0xCE", LIFESMART_STATE_LIST.index(hvac_mode), "MODE")
         else:
@@ -259,16 +238,12 @@ class LifeSmartClimateDevice(LifeSmartDevice, ClimateEntity):
                 await self.async_lifesmart_epset("0x81", 1, "P1")
 
     async def async_turn_on(self):
-        """Turn on."""
-        # [修復] 根據 API 規範正確區分通訊埠口
         if self._devtype in AIR_TYPES:
             await self.async_lifesmart_epset("0x81", 1, "O")
         else:
             await self.async_lifesmart_epset("0x81", 1, "P1")
 
     async def async_turn_off(self):
-        """Turn off."""
-        # [修復] 根據 API 規範正確區分通訊埠口
         if self._devtype in AIR_TYPES:
             await self.async_lifesmart_epset("0x80", 0, "O")
         else:
