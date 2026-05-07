@@ -42,6 +42,8 @@ class LifeSmartSwitch(LifeSmartDevice, SwitchEntity):
         """Initialize the switch."""
         super().__init__(dev, idx, val, param)
         self._attr_unique_id = f"{dev['devtype']}_{dev['agt']}_{dev['me']}_{idx}".lower()
+        # 新增這行，強制自訂 entity_id (例如: switch.sl_sw_nd3_5a3b2c_l1)
+        self.entity_id = f"switch.{dev['devtype']}_{dev['me']}_{idx}".lower()
         self._attr_is_on = False 
         
         # 根據系統啟動時撈到的數據更新初始狀態
