@@ -49,7 +49,7 @@ class LifeSmartBinarySensor(LifeSmartDevice, BinarySensorEntity):
         self.entity_id = f"binary_sensor.{dev['devtype']}_{dev['me']}_{idx}".lower()
         
         clean_agt = dev['agt'].replace("_", "")
-        self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}_{idx}".lower()
+        #self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}_{idx}".lower()
 
         devtype = dev['devtype']
         
