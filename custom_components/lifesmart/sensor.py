@@ -66,6 +66,8 @@ class LifeSmartSensor(LifeSmartDevice, SensorEntity):
         # 確保與 Dispatcher 派發的 unique_id 一致
         clean_agt = dev['agt'].replace("_", "")
         self._attr_unique_id = f"{dev['devtype']}_{clean_agt}_{dev['me']}_{idx}".lower()
+        # 新增
+        self.entity_id = f"sensor.{dev['devtype']}_{dev['me']}_{idx}".lower()
         
         devtype = dev['devtype']
         
