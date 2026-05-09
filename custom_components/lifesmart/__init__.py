@@ -160,7 +160,13 @@ class LifeSmartStatesManager:
         self._run = True
         self.hass.loop.create_task(self.ws_loop())
 
-    async def stop(self):
+    #async def stop(self):
+    #    self._run = False
+    #    if self._ws:
+    #        await self._ws.close()
+    # 加入 event=None 來接收 HA 傳遞的關機事件物件，
+    # 預設為 None 是為了相容我們在卸載整合 (async_unload_entry) 時不帶參數的呼叫。
+    async def stop(self, event=None):
         self._run = False
         if self._ws:
             await self._ws.close()
